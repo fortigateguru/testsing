@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>דמו Open Redirect – מקומי (קובץ אחד)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- תגיות OG פה הן רק להמחשה ופן חינוכי; פריוויו אמיתי דורש URL ציבורי -->
+  <meta property="og:locale" content="he_IL">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="משרד הביטחון – האתר הרשמי (דמו)">
+  <meta property="og:description" content="דמו חינוכי: כך נראה Open Redirect שמנצל מוניטין של אתר אמין.">
+  <meta property="og:url" content="https://mod.gov.il/">
+  <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Emblem_of_Israel.svg/1200px-Emblem_of_Israel.svg.png">
+
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#0b1220;color:#e6ebff}
+    header{padding:16px 20px;border-bottom:1px solid #1e2a44;background:#0f1a32}
+    h1{margin:0;font-size:18px}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:#101a33;border:1px solid #1e2a44;border-radius:12px;overflow:hidden}
+    .card h2{font-size:16px;margin:12px}
+    .card p{margin:0 12px 12px;color:#9fb1d9}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;background:#0b1220;border:1px solid #1e2a44;padding:2px 6px;border-radius:6px}
+    .warn{background:#2e1a1a;border:1px solid #5b2a2a;color:#ffdede;padding:10px 12px;border-radius:10px;margin:0 12px 12px}
+    iframe{width:100%;height:460px;border:0;border-top:1px solid #1e2a44}
+    .footer{opacity:.75;text-align:center;padding:12px}
+
+    /* “דף הכניסה המזויף” המוכל בקובץ */
+    #fakeLogin{display:none}
+    .box{background:#101a33;border:1px solid #1e2a44;border-radius:12px;padding:16px;max-width:420px;margin:24px auto}
+    label{display:block;margin:10px 0 4px;color:#9fb1d9}
+    input{width:100%;padding:10px;border-radius:8px;border:1px solid #1e2a44;background:#0b1220;color:#e6ebff}
+    button{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;background:#2b5cff;color:#fff;font-weight:600;cursor:pointer}
+    .exfil{margin-top:16px;background:#1a2238;border:1px dashed #2c3e72;padding:12px;border-radius:10px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>דמו Open Redirect – מקומי (קובץ יחיד)</h1>
+  </header>
+
+  <div id="stage1" class="wrap">
+    <div class="grid">
+      <div class="card">
+        <h2>1) תצוגה “לגיטימית” (iframe)</h2>
+        <p>נטען מתוך <span class="kbd">?url=</span> (ברירת מחדל: <span class="kbd">https://mod.gov.il/</span>). שים לב: אתרים רבים חוסמים הטמעה ב־iframe (X-Frame-Options/CSP), ואם כן תראה מסך ריק.</p>
+        <div class="warn">דמו חינוכי: אין שליחה לשרת. כאן מדמים “הלבנת מוניטין” – הצגת אתר אמיתי ואז הפניה.</div>
+        <iframe id="legitFrame" title="תוכן לגיטימי"></iframe>
+      </div>
+      <div class="card">
+        <h2>2) הפניה אוטומטית</h2>
+        <p>ה”יעד הזדוני” בדמו הזה הוא פשוט “דף כניסה מזויף” שמוכל באותו הקובץ. ברירת מחדל: <span class="kbd">3</span> שניות (שנה עם <span class="kbd">?delay=</span>).</p>
+        <div class="warn">תבוצע “הפניה” בעוד <span id="secs" class="kbd">3</span> שניות…</div>
+        <p>מטרת ההשהיה: המשתמש מספיק “להתרשם” מהאתר האמיתי לפני ההפניה.</p>
+      </div>
+    </div>
+    <p class="footer">טיפ להרצאה: הסבר שהפריוויו במייל/צ׳אט נשאב מה־&lt;head&gt; של הדף הראשון – לכן אי אפשר “לסמוך” על הכרטיס.</p>
+  </div>
+
+  <!-- “דף הכניסה המזויף” – בתוך אותו הקובץ -->
+  <div id="fakeLogin" class="wrap">
+    <div class="box">
+      <h2>פורטל התחברות (דמו)</h2>
+      <div class="warn">דמו חינוכי בלבד. אין תקשורת חיצונית. כאן מדגימים “גניבת אישורים”.</div>
+      <label for="u">שם משתמש</label>
+      <input id="u" placeholder="user@example.com">
+      <label for="p">סיסמה</label>
+      <input id="p" type="password" placeholder="••••••••">
+      <button id="login">התחבר</button>
+      <div id="out" class="exfil" style="display:none"></div>
+    </div>
+  </div>
+
+  <script>
+    // קריאת פרמטרים מה־URL
+    const qs = new URLSearchParams(location.search);
+    const legit = qs.get('url') || 'https://mod.gov.il/';
+    const delay = Math.max(1, parseInt(qs.get('delay') || '3', 10)); // מינימום שניה
+
+    // הצגת האתר "הלגיטימי" (אם אינו חוסם iframe)
+    document.getElementById('legitFrame').src = legit;
+
+    // טיימר להפניה
+    let t = delay;
+    const secs = document.getElementById('secs');
+    secs.textContent = t;
+    const iv = setInterval(() => {
+      t -= 1;
+      secs.textContent = t;
+      if (t <= 0) {
+        clearInterval(iv);
+        // “הפניה” לדף המזויף המוכל בקובץ
+        document.getElementById('stage1').style.display = 'none';
+        document.getElementById('fakeLogin').style.display = 'block';
+        // גלילה למעלה למקרה של מסכים קטנים
+        window.scrollTo({top: 0, behavior: 'instant' });
+      }
+    }, 1000);
+
+    // לוגיקת הדף המזויף (לוקאלית בלבד)
+    const u = document.getElementById('u');
+    const p = document.getElementById('p');
+    const out = document.getElementById('out');
+    const btn = document.getElementById('login');
+
+    btn.addEventListener('click', () => {
+      out.style.display = 'block';
+      out.innerHTML =
+        '<b>לכידת קלט (דמו):</b><br>' +
+        'Username: <code>' + (u.value || '(ריק)') + '</code><br>' +
+        'Password: <code>' + (p.value || '(ריק)') + '</code><br>' +
+        '<hr><small>דמו חינוכי בלבד – אין שליחה לרשת.</small>';
+      u.value = '';
+      p.value = '';
+    });
+  </script>
+</body>
+</html>
